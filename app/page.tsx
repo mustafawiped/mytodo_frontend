@@ -1,53 +1,100 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import {
+  ApiError,
+  AuthSession,
+  Note,
+  Todo,
+  User,
+  createNote,
+  createTodo,
+  getCurrentUser,
+  getNotes,
+  getTodos,
+  login,
+  register,
+  removeTodo,
+  updateTodo,
+} from "../lib/api";
 
-type Todo = {
-  id: number;
-  title: string;
-  detail: string;
-  priority: boolean;
-  completed: boolean;
-};
+const tokenKey = "mytodo_access_token";
 
-type Note = {
-  id: number;
-  content: string;
-};
+function sortTodos(todos: Todo[]) {
+  return [...todos].sort((first, second) => {
+    if (first.completed !== second.completed) {
+      return Number(first.completed) - Number(second.completed);
+    }
 
-const initialTodos: Todo[] = [
-  {
-    id: 1,
-    title: "Express API yapısını planla",
-    detail: "Kullanıcı ve yapılacak endpointlerini listele.",
-    priority: true,
-    completed: false,
-  },
-  {
-    id: 2,
-    title: "MongoDB koleksiyonlarını belirle",
-    detail: "User ve todo belgelerinin alanlarını netleştir.",
-    priority: false,
-    completed: false,
-  },
-  {
-    id: 3,
-    title: "Giriş ekranını kontrol et",
-    detail: "Mobil görünümde form alanlarını gözden geçir.",
-    priority: false,
-    completed: true,
-  },
-];
+    if (first.priority !== second.priority) {
+      return Number(second.priority) - Number(first.priority);
+    }
+
+    return new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime();
+  });
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof ApiError || error instanceof Error) {
+    return error.message;
+  }
+
+  return "İşlem tamamlanamadı.";
+}
 
 export default function Home() {
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [todoTitle, setTodoTitle] = useState("");
   const [todoDetail, setTodoDetail] = useState("");
   const [todoPriority, setTodoPriority] = useState(false);
-  const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
+  const [message, setMessage] = useState("");
+  const [isSavingTodo, setIsSavingTodo] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  useEffect(() => {
+    const storedToken = window.localStorage.getItem(tokenKey);
+    let isActive = true;
+
+    async function restoreSession() {
+      try {
+        if (!storedToken) return;
+
+        const [{ user: currentUser }, { todos: savedTodos }, { notes: savedNotes }] = await Promise.all([
+          getCurrentUser(storedToken),
+          getTodos(storedToken),
+          getNotes(storedToken),
+        ]);
+
+        if (!isActive) return;
+
+        setToken(storedToken);
+        setUser(currentUser);
+        setTodos(sortTodos(savedTodos));
+        setNotes(savedNotes);
+      } catch (error) {
+        if (!isActive) return;
+
+        window.localStorage.removeItem(tokenKey);
+        setMessage(getErrorMessage(error));
+      } finally {
+        if (isActive) {
+          setIsCheckingSession(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const activeTodos = todos.filter((todo) => !todo.completed);
   const priorityTodos = activeTodos.filter((todo) => todo.priority);
@@ -61,35 +108,67 @@ export default function Home() {
     setEditingTodoId(null);
   }
 
-  function saveTodo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cleanTitle = todoTitle.trim();
-    const cleanDetail = todoDetail.trim();
+  async function handleAuthenticated(session: AuthSession) {
+    window.localStorage.setItem(tokenKey, session.token);
+    setToken(session.token);
+    setUser(session.user);
+    setMessage("");
 
-    if (!cleanTitle) return;
-
-    if (editingTodoId !== null) {
-      setTodos((currentTodos) =>
-        currentTodos.map((todo) =>
-          todo.id === editingTodoId
-            ? { ...todo, title: cleanTitle, detail: cleanDetail, priority: todoPriority }
-            : todo,
-        ),
-      );
-    } else {
-      setTodos((currentTodos) => [
-        ...currentTodos,
-        {
-          id: Date.now(),
-          title: cleanTitle,
-          detail: cleanDetail,
-          priority: todoPriority,
-          completed: false,
-        },
+    try {
+      const [{ todos: savedTodos }, { notes: savedNotes }] = await Promise.all([
+        getTodos(session.token),
+        getNotes(session.token),
       ]);
+      setTodos(sortTodos(savedTodos));
+      setNotes(savedNotes);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
     }
+  }
 
+  function signOut() {
+    window.localStorage.removeItem(tokenKey);
+    setToken(null);
+    setUser(null);
+    setTodos([]);
+    setNotes([]);
+    setMessage("");
     resetTodoForm();
+  }
+
+  async function saveTodo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!token || !todoTitle.trim()) return;
+
+    setIsSavingTodo(true);
+    setMessage("");
+
+    try {
+      if (editingTodoId) {
+        const { todo } = await updateTodo(token, editingTodoId, {
+          title: todoTitle.trim(),
+          detail: todoDetail.trim(),
+          priority: todoPriority,
+        });
+        setTodos((currentTodos) =>
+          sortTodos(currentTodos.map((currentTodo) => currentTodo.id === todo.id ? todo : currentTodo)),
+        );
+      } else {
+        const { todo } = await createTodo(token, {
+          title: todoTitle.trim(),
+          detail: todoDetail.trim(),
+          priority: todoPriority,
+        });
+        setTodos((currentTodos) => sortTodos([...currentTodos, todo]));
+      }
+
+      resetTodoForm();
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setIsSavingTodo(false);
+    }
   }
 
   function startEditing(todo: Todo) {
@@ -99,46 +178,83 @@ export default function Home() {
     setTodoPriority(todo.priority);
   }
 
-  function deleteTodo(todoId: number) {
-    setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== todoId));
+  async function deleteTodo(todoId: string) {
+    if (!token) return;
 
-    if (editingTodoId === todoId) {
-      resetTodoForm();
+    setMessage("");
+
+    try {
+      await removeTodo(token, todoId);
+      setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== todoId));
+
+      if (editingTodoId === todoId) {
+        resetTodoForm();
+      }
+    } catch (error) {
+      setMessage(getErrorMessage(error));
     }
   }
 
-  function toggleTodo(todoId: number) {
-    setTodos((currentTodos) =>
-      currentTodos.map((todo) =>
-        todo.id === todoId ? { ...todo, completed: !todo.completed } : todo,
-      ),
+  async function toggleTodo(todoId: string) {
+    if (!token) return;
+
+    const currentTodo = todos.find((todo) => todo.id === todoId);
+    if (!currentTodo) return;
+
+    setMessage("");
+
+    try {
+      const { todo } = await updateTodo(token, todoId, { completed: !currentTodo.completed });
+      setTodos((currentTodos) =>
+        sortTodos(currentTodos.map((item) => item.id === todo.id ? todo : item)),
+      );
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function saveNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!token || !noteText.trim()) return;
+
+    setIsSavingNote(true);
+    setMessage("");
+
+    try {
+      const { note } = await createNote(token, noteText.trim());
+      setNotes((currentNotes) => [note, ...currentNotes]);
+      setNoteText("");
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setIsSavingNote(false);
+    }
+  }
+
+  if (isCheckingSession) {
+    return (
+      <main className="loading-page">
+        <Brand />
+        <p>Oturum kontrol ediliyor...</p>
+      </main>
     );
   }
 
-  function saveNote(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cleanNote = noteText.trim();
-
-    if (!cleanNote) return;
-
-    setNotes((currentNotes) => [
-      { id: Date.now(), content: cleanNote },
-      ...currentNotes,
-    ]);
-    setNoteText("");
-  }
-
-  if (!isSignedIn) {
-    return <AuthScreen onAuthenticated={() => setIsSignedIn(true)} />;
+  if (!token || !user) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} initialMessage={message} />;
   }
 
   return (
     <main className="dashboard-page">
       <header className="site-header">
         <Brand />
-        <button className="text-button" type="button" onClick={() => setIsSignedIn(false)}>
-          Çıkış yap
-        </button>
+        <div className="account-area">
+          <span>{user.name}</span>
+          <button className="text-button" type="button" onClick={signOut}>
+            Çıkış yap
+          </button>
+        </div>
       </header>
 
       <section className="dashboard-content">
@@ -146,6 +262,8 @@ export default function Home() {
           <p className="eyebrow">My ToDo! Kaydedilen Notların</p>
           <h1>Bugün ne yapmak istiyorsun??</h1>
         </div>
+
+        {message && <div className="status-message" role="alert">{message}</div>}
 
         <div className="workspace-grid">
           <section className="glass-panel todo-panel">
@@ -188,8 +306,8 @@ export default function Home() {
                       Vazgeç
                     </button>
                   )}
-                  <button className="primary-button" type="submit">
-                    {editingTodoId === null ? "Ekle" : "Kaydet"}
+                  <button className="primary-button" type="submit" disabled={isSavingTodo}>
+                    {isSavingTodo ? "Kaydediliyor..." : editingTodoId === null ? "Ekle" : "Kaydet"}
                   </button>
                 </div>
               </div>
@@ -241,8 +359,8 @@ export default function Home() {
                 placeholder="Aklındaki notu buraya yaz..."
                 aria-label="Not içeriği"
               />
-              <button className="primary-button note-save-button" type="submit">
-                Notu kaydet
+              <button className="primary-button note-save-button" type="submit" disabled={isSavingNote}>
+                {isSavingNote ? "Kaydediliyor..." : "Notu kaydet"}
               </button>
             </form>
 
@@ -267,10 +385,10 @@ type TodoGroupProps = {
   title: string;
   todos: Todo[];
   emptyText?: string;
-  editingTodoId: number | null;
-  onToggle: (todoId: number) => void;
+  editingTodoId: string | null;
+  onToggle: (todoId: string) => void;
   onEdit: (todo: Todo) => void;
-  onDelete: (todoId: number) => void;
+  onDelete: (todoId: string) => void;
 };
 
 function TodoGroup({
@@ -328,12 +446,55 @@ function TodoGroup({
   );
 }
 
-function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+type AuthScreenProps = {
+  onAuthenticated: (session: AuthSession) => Promise<void>;
+  initialMessage?: string;
+};
 
-  function submitAuth(event: FormEvent<HTMLFormElement>) {
+function AuthScreen({ onAuthenticated, initialMessage = "" }: AuthScreenProps) {
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [errorMessage, setErrorMessage] = useState(initialMessage);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onAuthenticated();
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") || "");
+    const password = String(formData.get("password") || "");
+
+    try {
+      let session: AuthSession;
+
+      if (authMode === "register") {
+        const passwordConfirmation = String(formData.get("passwordConfirmation") || "");
+
+        if (password !== passwordConfirmation) {
+          throw new Error("Şifreler eşleşmiyor.");
+        }
+
+        session = await register({
+          name: String(formData.get("name") || ""),
+          email,
+          password,
+        });
+      } else {
+        session = await login({ email, password });
+      }
+
+      await onAuthenticated(session);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function switchMode(mode: "login" | "register") {
+    setAuthMode(mode);
+    setErrorMessage("");
   }
 
   return (
@@ -359,7 +520,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             type="button"
             role="tab"
             aria-selected={authMode === "login"}
-            onClick={() => setAuthMode("login")}
+            onClick={() => switchMode("login")}
           >
             Giriş yap
           </button>
@@ -368,7 +529,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             type="button"
             role="tab"
             aria-selected={authMode === "register"}
-            onClick={() => setAuthMode("register")}
+            onClick={() => switchMode("register")}
           >
             Kayıt ol
           </button>
@@ -379,29 +540,31 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
           <h2>{authMode === "login" ? "Hesabına giriş yap" : "Yeni hesap oluştur"}</h2>
         </div>
 
+        {errorMessage && <div className="status-message auth-message" role="alert">{errorMessage}</div>}
+
         <form className="auth-form" onSubmit={submitAuth}>
           {authMode === "register" && (
             <label className="form-field">
               <span>Ad soyad</span>
-              <input type="text" placeholder="Adınız ve soyadınız" required />
+              <input name="name" type="text" placeholder="Adınız ve soyadınız" required />
             </label>
           )}
           <label className="form-field">
             <span>E-posta</span>
-            <input type="email" placeholder="ornek@eposta.com" required />
+            <input name="email" type="email" placeholder="ornek@eposta.com" required />
           </label>
           <label className="form-field">
             <span>Şifre</span>
-            <input type="password" placeholder="••••••••" minLength={6} required />
+            <input name="password" type="password" placeholder="••••••••" minLength={8} required />
           </label>
           {authMode === "register" && (
             <label className="form-field">
               <span>Şifre tekrar</span>
-              <input type="password" placeholder="••••••••" minLength={6} required />
+              <input name="passwordConfirmation" type="password" placeholder="••••••••" minLength={8} required />
             </label>
           )}
-          <button className="primary-button auth-submit" type="submit">
-            {authMode === "login" ? "Giriş yap" : "Kayıt ol"}
+          <button className="primary-button auth-submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Gönderiliyor..." : authMode === "login" ? "Giriş yap" : "Kayıt ol"}
           </button>
         </form>
       </section>
