@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,27 +13,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Starter Project",
-  description: "A clean starting point for building your site.",
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const previewImage = `${protocol}://${host}/og.png`;
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+  return {
+    title: "MyToDo! — Gününü sadeleştir",
+    description: "Görevlerini oluştur, takip et ve gününü daha berrak planla.",
+    openGraph: {
+      title: "MyToDo! — Gününü sadeleştir",
+      description: "Görevlerini oluştur, takip et ve gününü daha berrak planla.",
+      images: [{ url: previewImage, width: 1536, height: 864, alt: "MyToDo! sosyal önizleme kartı" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "MyToDo! — Gününü sadeleştir",
+      description: "Görevlerini oluştur, takip et ve gününü daha berrak planla.",
+      images: [previewImage],
+    },
+  };
+}
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="tr">
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
     </html>
   );
 }
