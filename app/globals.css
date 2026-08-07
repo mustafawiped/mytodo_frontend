@@ -25,7 +25,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font-family: var(--font-body), Arial, sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
@@ -44,8 +44,10 @@ button {
 
 h1,
 h2,
+h3,
+h4,
 .brand {
-  font-family: var(--font-heading), Arial, sans-serif;
+  font-family: "Segoe UI Variable Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .dashboard-page,
@@ -53,32 +55,7 @@ h2,
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(0, 219, 233, 0.07), transparent 28%),
-    radial-gradient(circle at 88% 82%, rgba(216, 140, 255, 0.07), transparent 28%),
-    var(--background);
-}
-
-.ambient {
-  position: fixed;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  filter: blur(130px);
-  opacity: 0.12;
-  pointer-events: none;
-}
-
-.ambient-cyan {
-  top: -210px;
-  left: -150px;
-  background: var(--cyan);
-}
-
-.ambient-purple {
-  right: -190px;
-  bottom: -230px;
-  background: var(--purple);
+  background: var(--background);
 }
 
 .site-header {
@@ -148,7 +125,7 @@ h2,
 .eyebrow {
   margin: 0 0 11px;
   color: var(--cyan);
-  font-family: var(--font-heading), Arial, sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 2px;
@@ -206,21 +183,22 @@ h2,
   border-radius: 50%;
   background: rgba(0, 219, 233, 0.07);
   color: var(--cyan-bright);
-  font-family: var(--font-heading), Arial, sans-serif;
+  font-family: "Segoe UI Variable", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 12px;
 }
 
 .todo-form {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  gap: 11px;
   margin-top: 28px;
-  padding: 7px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 15px;
   background: rgba(0, 0, 0, 0.22);
 }
 
 .todo-form input,
+.todo-form textarea,
 .form-field input,
 .note-form textarea {
   border: 1px solid transparent;
@@ -229,10 +207,61 @@ h2,
   color: var(--text);
 }
 
-.todo-form input {
-  min-width: 0;
-  flex: 1;
-  padding: 0 12px;
+.todo-title-input,
+.todo-detail-input {
+  width: 100%;
+  padding: 0 13px;
+  border-color: var(--line) !important;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+
+.todo-title-input {
+  min-height: 46px;
+}
+
+.todo-detail-input {
+  min-height: 82px;
+  padding-top: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.todo-title-input:focus,
+.todo-detail-input:focus {
+  border-color: rgba(0, 219, 233, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(0, 219, 233, 0.07);
+}
+
+.todo-form-footer,
+.todo-form-actions {
+  display: flex;
+  align-items: center;
+}
+
+.todo-form-footer {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.todo-form-actions {
+  gap: 8px;
+}
+
+.priority-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #b9c1c2;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.priority-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--purple);
 }
 
 input::placeholder,
@@ -267,14 +296,45 @@ textarea::placeholder {
 
 .todo-list {
   display: grid;
-  gap: 10px;
+  gap: 28px;
   margin-top: 28px;
+}
+
+.todo-group {
+  display: grid;
+  gap: 11px;
+}
+
+.todo-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 3px;
+}
+
+.todo-group-heading h3 {
+  margin: 0;
+  color: #b9c1c2;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.todo-group-heading span {
+  color: #687273;
+  font-size: 11px;
+}
+
+.todo-group-items {
+  display: grid;
+  gap: 10px;
 }
 
 .todo-row {
   min-height: 72px;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -288,17 +348,82 @@ textarea::placeholder {
   background: rgba(0, 219, 233, 0.05);
 }
 
-.todo-index {
-  color: #667172;
-  font-family: var(--font-heading), Arial, sans-serif;
-  font-size: 11px;
-  letter-spacing: 1px;
+.complete-button {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1.5px solid #607071;
+  border-radius: 7px;
+  background: transparent;
+  color: #073b2b;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
-.todo-row p {
+.complete-button:hover {
+  border-color: var(--green);
+}
+
+.is-completed .complete-button {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.todo-content {
+  min-width: 0;
+}
+
+.todo-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.todo-title-line h4 {
   margin: 0;
   overflow-wrap: anywhere;
   font-size: 16px;
+  font-weight: 600;
+}
+
+.todo-content > p {
+  margin: 6px 0 0;
+  color: #899394;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.priority-badge {
+  padding: 3px 7px;
+  border: 1px solid rgba(216, 140, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(216, 140, 255, 0.08);
+  color: #e1a9ff;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.todo-row.is-completed {
+  opacity: 0.65;
+}
+
+.todo-row.is-completed .todo-title-line h4 {
+  color: #909899;
+  text-decoration: line-through;
+}
+
+.group-empty {
+  padding: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  color: #667071;
+  font-size: 13px;
+  text-align: center;
 }
 
 .todo-actions {
@@ -578,25 +703,29 @@ textarea::placeholder {
   }
 
   .todo-form {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .todo-form input {
-    grid-column: 1 / -1;
-    min-height: 44px;
-  }
-
-  .todo-form .primary-button:only-of-type {
-    grid-column: 1 / -1;
+    padding: 10px;
   }
 
   .todo-row {
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: 26px minmax(0, 1fr);
   }
 
   .todo-actions {
     grid-column: 2;
+  }
+
+  .todo-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .todo-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .todo-form-actions .primary-button:only-child {
+    grid-column: 1 / -1;
   }
 
   .auth-page {

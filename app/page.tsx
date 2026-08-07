@@ -5,6 +5,9 @@ import { FormEvent, useState } from "react";
 type Todo = {
   id: number;
   title: string;
+  detail: string;
+  priority: boolean;
+  completed: boolean;
 };
 
 type Note = {
@@ -13,58 +16,103 @@ type Note = {
 };
 
 const initialTodos: Todo[] = [
-  { id: 1, title: "Express API yapısını planla" },
-  { id: 2, title: "MongoDB koleksiyonlarını belirle" },
-  { id: 3, title: "Giriş ekranını kontrol et" },
+  {
+    id: 1,
+    title: "Express API yapısını planla",
+    detail: "Kullanıcı ve yapılacak endpointlerini listele.",
+    priority: true,
+    completed: false,
+  },
+  {
+    id: 2,
+    title: "MongoDB koleksiyonlarını belirle",
+    detail: "User ve todo belgelerinin alanlarını netleştir.",
+    priority: false,
+    completed: false,
+  },
+  {
+    id: 3,
+    title: "Giriş ekranını kontrol et",
+    detail: "Mobil görünümde form alanlarını gözden geçir.",
+    priority: false,
+    completed: true,
+  },
 ];
 
 export default function Home() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [todoTitle, setTodoTitle] = useState("");
+  const [todoDetail, setTodoDetail] = useState("");
+  const [todoPriority, setTodoPriority] = useState(false);
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
 
+  const activeTodos = todos.filter((todo) => !todo.completed);
+  const priorityTodos = activeTodos.filter((todo) => todo.priority);
+  const standardTodos = activeTodos.filter((todo) => !todo.priority);
+  const completedTodos = todos.filter((todo) => todo.completed);
+
+  function resetTodoForm() {
+    setTodoTitle("");
+    setTodoDetail("");
+    setTodoPriority(false);
+    setEditingTodoId(null);
+  }
+
   function saveTodo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanTitle = todoTitle.trim();
+    const cleanDetail = todoDetail.trim();
 
     if (!cleanTitle) return;
 
     if (editingTodoId !== null) {
       setTodos((currentTodos) =>
         currentTodos.map((todo) =>
-          todo.id === editingTodoId ? { ...todo, title: cleanTitle } : todo,
+          todo.id === editingTodoId
+            ? { ...todo, title: cleanTitle, detail: cleanDetail, priority: todoPriority }
+            : todo,
         ),
       );
-      setEditingTodoId(null);
     } else {
       setTodos((currentTodos) => [
         ...currentTodos,
-        { id: Date.now(), title: cleanTitle },
+        {
+          id: Date.now(),
+          title: cleanTitle,
+          detail: cleanDetail,
+          priority: todoPriority,
+          completed: false,
+        },
       ]);
     }
 
-    setTodoTitle("");
+    resetTodoForm();
   }
 
   function startEditing(todo: Todo) {
     setEditingTodoId(todo.id);
     setTodoTitle(todo.title);
-  }
-
-  function cancelEditing() {
-    setEditingTodoId(null);
-    setTodoTitle("");
+    setTodoDetail(todo.detail);
+    setTodoPriority(todo.priority);
   }
 
   function deleteTodo(todoId: number) {
     setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== todoId));
 
     if (editingTodoId === todoId) {
-      cancelEditing();
+      resetTodoForm();
     }
+  }
+
+  function toggleTodo(todoId: number) {
+    setTodos((currentTodos) =>
+      currentTodos.map((todo) =>
+        todo.id === todoId ? { ...todo, completed: !todo.completed } : todo,
+      ),
+    );
   }
 
   function saveNote(event: FormEvent<HTMLFormElement>) {
@@ -86,9 +134,6 @@ export default function Home() {
 
   return (
     <main className="dashboard-page">
-      <div className="ambient ambient-cyan" />
-      <div className="ambient ambient-purple" />
-
       <header className="site-header">
         <Brand />
         <button className="text-button" type="button" onClick={() => setIsSignedIn(false)}>
@@ -98,55 +143,86 @@ export default function Home() {
 
       <section className="dashboard-content">
         <div className="page-heading">
-          <p className="eyebrow">MYTODO! ÇALIŞMA ALANI</p>
-          <h1>Bugün ne yapacağız?</h1>
+          <p className="eyebrow">My ToDo! Kaydedilen Notların</p>
+          <h1>Bugün ne yapmak istiyorsun??</h1>
         </div>
 
         <div className="workspace-grid">
           <section className="glass-panel todo-panel">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">YAPILACAKLAR</p>
+                <p className="eyebrow">Kaydedilenler</p>
                 <h2>Listen</h2>
               </div>
-              <span className="item-count">{todos.length}</span>
+              <span className="item-count">{activeTodos.length}</span>
             </div>
 
             <form className="todo-form" onSubmit={saveTodo}>
               <input
+                className="todo-title-input"
                 value={todoTitle}
                 onChange={(event) => setTodoTitle(event.target.value)}
                 placeholder={editingTodoId === null ? "Yeni bir yapılacak yaz..." : "Yapılacağı düzenle..."}
                 aria-label="Yapılacak başlığı"
+                required
               />
-              {editingTodoId !== null && (
-                <button className="ghost-button" type="button" onClick={cancelEditing}>
-                  Vazgeç
-                </button>
-              )}
-              <button className="primary-button" type="submit">
-                {editingTodoId === null ? "Ekle" : "Kaydet"}
-              </button>
+              <textarea
+                className="todo-detail-input"
+                value={todoDetail}
+                onChange={(event) => setTodoDetail(event.target.value)}
+                placeholder="Detay ekle..."
+                aria-label="Yapılacak detayı"
+              />
+              <div className="todo-form-footer">
+                <label className="priority-toggle">
+                  <input
+                    type="checkbox"
+                    checked={todoPriority}
+                    onChange={(event) => setTodoPriority(event.target.checked)}
+                  />
+                  <span>Öncelikli</span>
+                </label>
+                <div className="todo-form-actions">
+                  {editingTodoId !== null && (
+                    <button className="ghost-button" type="button" onClick={resetTodoForm}>
+                      Vazgeç
+                    </button>
+                  )}
+                  <button className="primary-button" type="submit">
+                    {editingTodoId === null ? "Ekle" : "Kaydet"}
+                  </button>
+                </div>
+              </div>
             </form>
 
             <div className="todo-list">
-              {todos.length ? (
-                todos.map((todo, index) => (
-                  <article className={`todo-row ${editingTodoId === todo.id ? "is-editing" : ""}`} key={todo.id}>
-                    <span className="todo-index">{String(index + 1).padStart(2, "0")}</span>
-                    <p>{todo.title}</p>
-                    <div className="todo-actions">
-                      <button type="button" onClick={() => startEditing(todo)}>
-                        Düzenle
-                      </button>
-                      <button className="delete-button" type="button" onClick={() => deleteTodo(todo.id)}>
-                        Sil
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-list">Henüz yapılacak eklenmedi.</div>
+              <TodoGroup
+                title="Öncelikli"
+                todos={priorityTodos}
+                emptyText="Öncelikli yapılacak yok."
+                editingTodoId={editingTodoId}
+                onToggle={toggleTodo}
+                onEdit={startEditing}
+                onDelete={deleteTodo}
+              />
+              <TodoGroup
+                title="Diğer yapılacaklar"
+                todos={standardTodos}
+                emptyText="Diğer yapılacak yok."
+                editingTodoId={editingTodoId}
+                onToggle={toggleTodo}
+                onEdit={startEditing}
+                onDelete={deleteTodo}
+              />
+              {completedTodos.length > 0 && (
+                <TodoGroup
+                  title="Tamamlananlar"
+                  todos={completedTodos}
+                  editingTodoId={editingTodoId}
+                  onToggle={toggleTodo}
+                  onEdit={startEditing}
+                  onDelete={deleteTodo}
+                />
               )}
             </div>
           </section>
@@ -187,6 +263,71 @@ export default function Home() {
   );
 }
 
+type TodoGroupProps = {
+  title: string;
+  todos: Todo[];
+  emptyText?: string;
+  editingTodoId: number | null;
+  onToggle: (todoId: number) => void;
+  onEdit: (todo: Todo) => void;
+  onDelete: (todoId: number) => void;
+};
+
+function TodoGroup({
+  title,
+  todos,
+  emptyText,
+  editingTodoId,
+  onToggle,
+  onEdit,
+  onDelete,
+}: TodoGroupProps) {
+  return (
+    <section className="todo-group">
+      <div className="todo-group-heading">
+        <h3>{title}</h3>
+        <span>{todos.length}</span>
+      </div>
+      <div className="todo-group-items">
+        {todos.length ? (
+          todos.map((todo) => (
+            <article
+              className={`todo-row ${todo.completed ? "is-completed" : ""} ${editingTodoId === todo.id ? "is-editing" : ""}`}
+              key={todo.id}
+            >
+              <button
+                className="complete-button"
+                type="button"
+                onClick={() => onToggle(todo.id)}
+                aria-label={todo.completed ? "Yapılmadı olarak işaretle" : "Yapıldı olarak işaretle"}
+              >
+                {todo.completed ? "✓" : ""}
+              </button>
+              <div className="todo-content">
+                <div className="todo-title-line">
+                  <h4>{todo.title}</h4>
+                  {todo.priority && <span className="priority-badge">Öncelikli</span>}
+                </div>
+                {todo.detail && <p>{todo.detail}</p>}
+              </div>
+              <div className="todo-actions">
+                <button type="button" onClick={() => onEdit(todo)}>
+                  Düzenle
+                </button>
+                <button className="delete-button" type="button" onClick={() => onDelete(todo.id)}>
+                  Sil
+                </button>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="group-empty">{emptyText}</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
 
@@ -197,9 +338,6 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
 
   return (
     <main className="auth-page">
-      <div className="ambient ambient-cyan" />
-      <div className="ambient ambient-purple" />
-
       <section className="auth-intro">
         <Brand />
         <div className="intro-copy">
